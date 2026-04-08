@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>One's Complement Visualizer (一補碼)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+            /* 嚴格防止整個頁面出現橫向捲動軸 */
+            overflow-x: hidden; 
+        }
+        
+        .bit-box {
+            font-family: 'JetBrains Mono', monospace;
+            transition: all 0.3s ease;
+        }
+
+        .bit-changed {
+            transform: scale(1.1);
+            background-color: #fef08a !important; 
+            color: #1e3a8a !important;
+        }
+
+        .shake {
+            animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center p-2 sm:p-4 py-8">
+
+    <div class="max-w-5xl w-full bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100">
+        <div class="bg-teal-600 p-4 sm:p-6 text-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+                <h1 id="app-title" class="text-2xl sm:text-3xl font-bold">一補碼與「雙重零」現象</h1>
+                <p id="app-subtitle" class="text-teal-100 mt-1">One's Complement Visualizer</p>
+            </div>
+            <div class="flex items-center gap-4 self-end sm:self-auto mt-2 sm:mt-0">
+                <span class="text-teal-100 text-sm font-medium">Created by Sam Li</span>
+                <button onclick="toggleLanguage()" class="bg-teal-500 hover:bg-teal-400 text-white px-4 py-2 rounded-lg font-semibold transition-colors border border-teal-400 flex items-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"></path></svg>
+                    <span id="lang-btn">English</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="p-4 sm:p-8">
+            
+            <div class="bg-teal-50 rounded-xl p-5 border border-teal-100 mb-8 shadow-sm">
+                <h3 class="font-bold text-lg text-teal-900 mb-2 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    <span id="goal-title">課堂目標 (Learning Goals)</span>
+                </h3>
+                <p id="goal-desc" class="text-teal-800 text-sm leading-relaxed">
+                    了解「一補碼」的簡單邏輯（0變1，1變0）。親自觀察它最大的致命傷：系統中同時存在「+0」和「-0」，這浪費了記憶體，也讓電腦的運算邏輯變得複雜。
+                </p>
+            </div>
+
+            <div id="zero-alert" class="hidden mb-6 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 p-4 rounded-r-lg shadow-sm flex items-center">
+                <svg class="w-6 h-6 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                <div>
+                    <p id="zero-title" class="font-bold">發現負零 (-0)！</p>
+                    <p id="zero-desc" class="text-sm">這是一補碼系統獨有的現象。數值上它等於 0，但在二進制中它全是 1 (11111111)。</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                <div class="col-span-1 bg-slate-50 rounded-xl p-6 flex flex-col items-center justify-center border border-slate-200 shadow-inner">
+                    <span id="label-decimal" class="text-slate-500 font-semibold mb-2 uppercase tracking-wider text-sm text-center">十進制 (Decimal)</span>
+                    <div class="relative w-full flex justify-center items-center">
+                        <span id="negative-zero-sign" class="hidden text-5xl sm:text-6xl font-bold text-orange-600 absolute left-4 sm:left-8">-</span>
+                        <input type="number" id="decimal-input" onchange="handleInputChange(this.value)" onkeyup="if(event.key === 'Enter') handleInputChange(this.value)" class="w-full text-center text-5xl sm:text-6xl font-bold text-slate-800 bg-transparent border-b-2 border-transparent hover:border-slate-300 focus:border-teal-500 outline-none transition-colors duration-300" value="0">
+                    </div>
+                    <span id="label-hint" class="text-xs text-slate-400 mt-2 text-center">範圍: -127 至 127</span>
+                </div>
+
+                <div class="col-span-1 lg:col-span-2 bg-slate-800 rounded-xl p-6 flex flex-col items-center justify-center shadow-inner overflow-hidden">
+                    <span id="label-binary" class="text-slate-400 font-semibold mb-4 uppercase tracking-wider text-sm">8-bit 一補碼表示法</span>
+                    
+                    <div class="w-full overflow-x-auto pb-2">
+                        <div class="flex space-x-1 sm:space-x-2 justify-center min-w-[300px]" id="binary-container">
+                            </div>
+                        <div class="flex justify-center mt-3 space-x-1 sm:space-x-2 text-[10px] sm:text-xs text-slate-400 min-w-[300px] font-mono">
+                            <div class="w-8 sm:w-10 text-center text-red-400 flex flex-col"><span id="label-sign-name" class="font-bold">符號</span><span>(-127)</span></div>
+                            <div class="w-8 sm:w-10 text-center flex flex-col"><span>&nbsp;</span><span>(64)</span></div>
+                            <div class="w-8 sm:w-10 text-center flex flex-col"><span>&nbsp;</span><span>(32)</span></div>
+                            <div class="w-8 sm:w-10 text-center flex flex-col"><span>&nbsp;</span><span>(16)</span></div>
+                            <div class="w-8 sm:w-10 text-center flex flex-col"><span>&nbsp;</span><span>(8)</span></div>
+                            <div class="w-8 sm:w-10 text-center flex flex-col"><span>&nbsp;</span><span>(4)</span></div>
+                            <div class="w-8 sm:w-10 text-center flex flex-col"><span>&nbsp;</span><span>(2)</span></div>
+                            <div class="w-8 sm:w-10 text-center flex flex-col"><span>&nbsp;</span><span>(1)</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-8">
+                <button onclick="updateValue(-1)" class="bg-slate-100 hover:bg-slate-200 text-slate-700 py-3 rounded-lg font-bold text-lg transition-colors shadow-sm border border-slate-200">
+                    - 1
+                </button>
+                <button onclick="updateValue(1)" class="bg-slate-100 hover:bg-slate-200 text-slate-700 py-3 rounded-lg font-bold text-lg transition-colors shadow-sm border border-slate-200">
+                    + 1
+                </button>
+                <button onclick="invertBits()" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 py-3 rounded-lg font-bold transition-colors shadow-sm border border-indigo-200 flex items-center justify-center text-sm sm:text-base">
+                    <svg class="w-5 h-5 mr-1 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
+                    <span id="btn-invert">反轉位元 (NOT)</span>
+                </button>
+                <button onclick="triggerNegativeZero()" class="bg-yellow-50 hover:bg-yellow-100 text-yellow-700 py-3 rounded-lg font-bold transition-colors shadow-sm border border-yellow-200 flex items-center justify-center text-sm sm:text-base">
+                    <svg class="w-5 h-5 mr-1 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                    <span id="btn-neg-zero">顯示 -0</span>
+                </button>
+            </div>
+
+            <div class="bg-white rounded-xl p-5 sm:p-6 border border-slate-200 shadow-sm mb-6 text-slate-700">
+                <h3 class="font-bold text-lg mb-4 text-slate-800 border-b pb-2 flex items-center">
+                    <svg class="w-5 h-5 text-slate-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+                    <span id="concept-title">概念解析</span>
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <h4 class="font-semibold text-slate-800 mb-2" id="concept-how-title">如何計算一補碼？</h4>
+                        <p class="text-sm leading-relaxed mb-2" id="concept-how-desc">非常直觀！正數的表示法與一般二進制無異。要得到負數，只需將對應正數的所有位元<strong>反轉（0變1，1變0）</strong>即可。也就是邏輯閘中的 NOT 運算。</p>
+                        <div class="bg-slate-50 p-3 rounded border border-slate-100 text-xs font-mono text-slate-600">
+                            +5 = 0000 0101<br>
+                            -5 = 1111 1010 (全部反轉)
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="font-semibold text-slate-800 mb-2" id="concept-flaw-title">一補碼的致命傷：雙重零</h4>
+                        <p class="text-sm leading-relaxed mb-2" id="concept-flaw-desc">如果我們將 +0 (00000000) 的位元全部反轉，會得到 11111111。在數學上，這個值被定義為 -0。這在硬體設計上是個大麻煩，因為電腦在判斷「是否等於零」時，需要檢查兩種不同的情況！</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-rose-50 rounded-xl p-5 sm:p-6 border border-rose-100 shadow-sm mb-6 text-slate-700">
+                <h3 class="font-bold text-lg mb-4 text-rose-900 border-b border-rose-200 pb-2 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <span id="misc-title">常見迷思 (Common Misconceptions)</span>
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <h4 class="font-semibold text-rose-800 mb-2" id="misc-1-title">迷思 1：負數只是把最左邊的 Bit 改成 1？</h4>
+                        <p class="text-sm leading-relaxed" id="misc-1-desc">這是一個常見的誤會！只改最左邊符號位的做法稱為「符號與大小 (Sign-Magnitude)」。在一補碼系統中，要把正數變成負數，必須反轉<strong>所有</strong>的位元，而不僅僅是第一位。</p>
+                    </div>
+                    <div>
+                        <h4 class="font-semibold text-rose-800 mb-2" id="misc-2-title">迷思 2：現在的電腦就是用一補碼？</h4>
+                        <p class="text-sm leading-relaxed" id="misc-2-desc">不是的。因為一補碼會產生「雙重零 (-0 和 +0)」的問題，現代電腦普遍採用「二補碼 (Two's Complement)」。一補碼現在主要是作為學習二補碼的過渡概念，或是計算過程中的一步。</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-blue-50 rounded-xl p-5 sm:p-6 border border-blue-100 text-slate-800 shadow-sm">
+                <h3 class="font-bold text-lg mb-4 text-blue-900 flex items-center border-b border-blue-200 pb-2">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"></path></svg>
+                    <span id="takeaway-title">課堂總結 (Key Takeaways)</span>
+                </h3>
+                <ul class="space-y-3 text-sm text-blue-900 font-medium">
+                    <li class="flex items-start">
+                        <span class="mr-2 mt-0.5">📌</span>
+                        <span id="takeaway-1"><strong>範圍縮小：</strong> 8-bit 的一補碼範圍是 -127 到 127。相比二補碼（可以去到 -128），它少了一個可用數字，因為那個位置留給了「-0」。</span>
+                    </li>
+                    <li class="flex items-start">
+                        <span class="mr-2 mt-0.5">📌</span>
+                        <span id="takeaway-2"><strong>歷史意義：</strong> 雖然一補碼將「變負數」的操作簡化為最基礎的 NOT 邏輯閘，但為了解決「雙重零」的問題，我們才需要進階到<strong>二補碼（反轉後再 + 1）</strong>。</span>
+                    </li>
+                </ul>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // --- State Management ---
+        let currentValue = 0; // -127 to 127
+        let isNegativeZero = false; // Special flag for -0
+        let currentLang = 'zh';
+        let previousBinaryString = "00000000";
+
+        // --- Translations ---
+        const i18n = {
+            zh: {
+                appTitle: "一補碼與「雙重零」現象",
+                langBtn: "English",
+                goalTitle: "課堂目標",
+                goalDesc: "了解「一補碼」的簡單邏輯（0變1，1變0）。親自觀察它最大的致命傷：系統中同時存在「+0」和「-0」，這浪費了記憶體，也讓電腦的運算邏輯變得複雜。",
+                labelDecimal: "十進制 (可輸入)",
+                labelHint: "範圍: -127 至 127",
+                labelBinary: "8-bit 一補碼表示法",
+                labelSignName: "符號",
+                btnInvert: "反轉位元 (NOT)",
+                btnNegZero: "顯示 -0",
+                zeroTitle: "發現負零 (-0)！",
+                zeroDesc: "這是一補碼系統獨有的現象。數值上它等於 0，但在二進制中它全是 1 (11111111)。",
+                conceptTitle: "概念解析",
+                conceptHowTitle: "如何計算一補碼？",
+                conceptHowDesc: "非常直觀！正數的表示法與一般二進制無異。要得到負數，只需將對應正數的所有位元<strong>反轉（0變1，1變0）</strong>即可。也就是邏輯閘中的 NOT 運算。",
+                conceptFlawTitle: "一補碼的致命傷：雙重零",
+                conceptFlawDesc: "如果我們將 +0 (00000000) 的位元全部反轉，會得到 11111111。在數學上，這個值被定義為 -0。這在硬體設計上是個大麻煩，因為電腦在判斷「是否等於零」時，需要檢查兩種不同的情況！",
+                miscTitle: "常見迷思 (Common Misconceptions)",
+                misc1Title: "迷思 1：負數只是把最左邊的 Bit 改成 1？",
+                misc1Desc: "這是一個常見的誤會！只改最左邊符號位的做法稱為「符號與大小 (Sign-Magnitude)」。在一補碼系統中，要把正數變成負數，必須反轉<strong>所有</strong>的位元，而不僅僅是第一位。",
+                misc2Title: "迷思 2：現在的電腦就是用一補碼？",
+                misc2Desc: "不是的。因為一補碼會產生「雙重零 (-0 和 +0)」的問題，現代電腦普遍採用「二補碼 (Two's Complement)」。一補碼現在主要是作為學習二補碼的過渡概念，或是計算過程中的一步。",
+                takeawayTitle: "課堂總結 (Key Takeaways)",
+                takeaway1: "<strong>範圍縮小：</strong> 8-bit 的一補碼範圍是 -127 到 127。相比二補碼（可以去到 -128），它少了一個可用數字，因為那個位置留給了「-0」。",
+                takeaway2: "<strong>歷史意義：</strong> 雖然一補碼將「變負數」的操作簡化為最基礎的 NOT 邏輯閘，但為了解決「雙重零」的問題，我們才需要進階到<strong>二補碼（反轉後再 + 1）</strong>。"
+            },
+            en: {
+                appTitle: "One's Complement & The Dual Zero",
+                langBtn: "中文",
+                goalTitle: "Learning Goals",
+                goalDesc: "Understand the logic of One's Complement (flip the bits). Observe its biggest flaw: the existence of both '+0' and '-0', which wastes memory and complicates arithmetic logic.",
+                labelDecimal: "Decimal Input",
+                labelHint: "Range: -127 to 127",
+                labelBinary: "8-bit One's Complement",
+                labelSignName: "Sign",
+                btnInvert: "Invert Bits (NOT)",
+                btnNegZero: "Show -0",
+                zeroTitle: "Negative Zero (-0) Detected!",
+                zeroDesc: "This is unique to the One's complement system. It equals 0 mathematically, but its binary is all 1s (11111111).",
+                conceptTitle: "Concept Breakdown",
+                conceptHowTitle: "How to Calculate One's Complement?",
+                conceptHowDesc: "Very intuitive! Positive numbers are the same as normal binary. To get a negative number, just <strong>invert all bits (0 to 1, 1 to 0)</strong> of its positive counterpart. This is a simple NOT gate operation.",
+                conceptFlawTitle: "The Fatal Flaw: Dual Zeros",
+                conceptFlawDesc: "If we invert all bits of +0 (00000000), we get 11111111. Mathematically, this is defined as -0. This is a nightmare for hardware design, as the computer must check two different binary patterns just to see if a value equals zero!",
+                miscTitle: "Common Misconceptions",
+                misc1Title: "Myth 1: Just change the leftmost bit for negatives?",
+                misc1Desc: "A common mistake! Changing only the leftmost bit is called 'Sign-Magnitude'. In One's Complement, to make a number negative, you must flip <strong>ALL</strong> bits, not just the first one.",
+                misc2Title: "Myth 2: Modern computers use One's Complement?",
+                misc2Desc: "No. Because of the 'Dual Zero (-0 and +0)' problem, modern computers universally use 'Two's Complement'. One's Complement is mainly taught as a stepping stone to understand Two's Complement.",
+                takeawayTitle: "Key Takeaways",
+                takeaway1: "<strong>Reduced Range:</strong> The range for 8-bit One's Complement is -127 to 127. It holds one less number than Two's Complement (which reaches -128) because that slot is wasted on '-0'.",
+                takeaway2: "<strong>Historical Significance:</strong> While flipping bits is the easiest hardware operation, the headaches caused by 'dual zeros' led modern computers to adopt <strong>Two's Complement (invert then add 1)</strong>."
+            }
+        };
+
+        // --- Initialization ---
+        function init() {
+            createBinaryBoxes();
+            updateDisplay();
+            applyLanguage();
+        }
+
+        function createBinaryBoxes() {
+            const container = document.getElementById('binary-container');
+            container.innerHTML = '';
+            for (let i = 0; i < 8; i++) {
+                const box = document.createElement('div');
+                box.id = `bit-${i}`;
+                box.className = `bit-box w-8 sm:w-10 h-12 sm:h-14 bg-slate-700 text-white text-xl sm:text-2xl font-bold flex items-center justify-center rounded shadow-md flex-shrink-0 ${i === 0 ? 'border-2 border-red-500' : ''}`;
+                box.innerText = '0';
+                container.appendChild(box);
+            }
+        }
+
+        // --- Core Logic for 1's Complement ---
+        function getBinaryString(val, isNegZ) {
+            if (isNegZ) return "11111111"; // Hardcode negative zero
+            
+            if (val >= 0) {
+                return val.toString(2).padStart(8, '0');
+            } else {
+                // Invert bits of the positive version
+                let posBinary = (-val).toString(2).padStart(8, '0');
+                let inverted = "";
+                for(let i=0; i<8; i++) {
+                    inverted += posBinary[i] === '0' ? '1' : '0';
+                }
+                return inverted;
+            }
+        }
+
+        function handleInputChange(val) {
+            let num = parseInt(val);
+            isNegativeZero = false; // reset flag on manual typing
+            
+            if (isNaN(num)) num = 0;
+            if (num > 127) num = 127;
+            if (num < -127) num = -127; // Range is -127 to 127
+            
+            currentValue = num;
+            updateDisplay();
+        }
+
+        function updateValue(delta) {
+            isNegativeZero = false;
+            let newValue = currentValue + delta;
+
+            if (newValue > 127) newValue = 127; 
+            if (newValue < -127) newValue = -127;
+
+            currentValue = newValue;
+            updateDisplay();
+        }
+
+        function invertBits() {
+            if (isNegativeZero) {
+                // Invert of -0 (11111111) is +0 (00000000)
+                isNegativeZero = false;
+                currentValue = 0;
+            } else if (currentValue === 0) {
+                // Invert of +0 is -0
+                isNegativeZero = true;
+                currentValue = 0;
+            } else {
+                // In 1's complement, inverting bits is exactly multiplying by -1
+                currentValue = -currentValue;
+            }
+            updateDisplay();
+        }
+
+        function triggerNegativeZero() {
+            currentValue = 0;
+            isNegativeZero = true;
+            updateDisplay();
+        }
+
+        // --- UI Updates ---
+        function updateDisplay() {
+            const decInput = document.getElementById('decimal-input');
+            const negZeroSign = document.getElementById('negative-zero-sign');
+            
+            decInput.value = Math.abs(currentValue); // Show absolute to handle -0 visuals cleanly
+            if(currentValue < 0 && !isNegativeZero) decInput.value = currentValue;
+            else if(currentValue === 0 && !isNegativeZero) decInput.value = 0;
+
+            if (currentValue > 0) {
+                decInput.className = "w-full text-center text-5xl sm:text-6xl font-bold text-green-600 bg-transparent border-b-2 border-transparent hover:border-slate-300 focus:border-teal-500 outline-none transition-colors duration-300";
+                negZeroSign.classList.add('hidden');
+            } else if (currentValue < 0 || isNegativeZero) {
+                decInput.className = "w-full text-center text-5xl sm:text-6xl font-bold text-orange-600 bg-transparent border-b-2 border-transparent hover:border-slate-300 focus:border-teal-500 outline-none transition-colors duration-300 pl-8";
+                negZeroSign.classList.remove('hidden');
+            } else {
+                decInput.className = "w-full text-center text-5xl sm:text-6xl font-bold text-slate-800 bg-transparent border-b-2 border-transparent hover:border-slate-300 focus:border-teal-500 outline-none transition-colors duration-300";
+                negZeroSign.classList.add('hidden');
+            }
+
+            const binString = getBinaryString(currentValue, isNegativeZero);
+            for (let i = 0; i < 8; i++) {
+                const bitBox = document.getElementById(`bit-${i}`);
+                const newBit = binString[i];
+                const oldBit = previousBinaryString[i];
+                
+                bitBox.innerText = newBit;
+
+                if (newBit !== oldBit) {
+                    bitBox.classList.add('bit-changed');
+                    setTimeout(() => bitBox.classList.remove('bit-changed'), 300);
+                }
+            }
+            previousBinaryString = binString;
+
+            // Handle alert for -0
+            const zeroAlert = document.getElementById('zero-alert');
+            if (isNegativeZero) {
+                zeroAlert.classList.remove('hidden');
+                zeroAlert.classList.add('shake');
+                setTimeout(() => zeroAlert.classList.remove('shake'), 500);
+            } else {
+                zeroAlert.classList.add('hidden');
+            }
+        }
+
+        // --- Language Toggle ---
+        function toggleLanguage() {
+            currentLang = currentLang === 'en' ? 'zh' : 'en';
+            applyLanguage();
+        }
+
+        function applyLanguage() {
+            const t = i18n[currentLang];
+            // 修正：不再於 JS 動態注入 <p>，單純替換 H1 文字，保留 HTML 原有的 subtitle 結構
+            document.getElementById('app-title').innerText = t.appTitle;
+            document.getElementById('lang-btn').innerText = t.langBtn;
+            
+            document.getElementById('goal-title').innerText = t.goalTitle;
+            document.getElementById('goal-desc').innerHTML = t.goalDesc;
+
+            document.getElementById('label-decimal').innerText = t.labelDecimal;
+            document.getElementById('label-hint').innerText = t.labelHint;
+            document.getElementById('label-binary').innerText = t.labelBinary;
+            document.getElementById('label-sign-name').innerText = t.labelSignName;
+            
+            document.getElementById('btn-invert').innerText = t.btnInvert;
+            document.getElementById('btn-neg-zero').innerText = t.btnNegZero;
+            
+            document.getElementById('zero-title').innerHTML = t.zeroTitle;
+            document.getElementById('zero-desc').innerText = t.zeroDesc;
+            
+            document.getElementById('concept-title').innerText = t.conceptTitle;
+            document.getElementById('concept-how-title').innerText = t.conceptHowTitle;
+            document.getElementById('concept-how-desc').innerHTML = t.conceptHowDesc;
+            document.getElementById('concept-flaw-title').innerText = t.conceptFlawTitle;
+            document.getElementById('concept-flaw-desc').innerHTML = t.conceptFlawDesc;
+
+            document.getElementById('misc-title').innerText = t.miscTitle;
+            document.getElementById('misc-1-title').innerText = t.misc1Title;
+            document.getElementById('misc-1-desc').innerHTML = t.misc1Desc;
+            document.getElementById('misc-2-title').innerText = t.misc2Title;
+            document.getElementById('misc-2-desc').innerHTML = t.misc2Desc;
+
+            document.getElementById('takeaway-title').innerText = t.takeawayTitle;
+            document.getElementById('takeaway-1').innerHTML = t.takeaway1;
+            document.getElementById('takeaway-2').innerHTML = t.takeaway2;
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
